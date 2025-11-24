@@ -14,7 +14,7 @@ app.get("/extract", async (req, res) => {
 
   try {
     const browser = await puppeteer.launch({
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,  // IMPORTANT FIX
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH, 
       headless: "new",
       args: [
         "--no-sandbox",
