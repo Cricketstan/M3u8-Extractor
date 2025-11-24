@@ -4,10 +4,5 @@ services:
     env: node
     plan: free
     region: oregon
-    buildCommand: |
-      apt-get update
-      apt-get install -y google-chrome-stable
-      npm install
+    buildCommand: npm install
     startCommand: npm start
-    envVars:
-      PUPPETEER_EXECUTABLE_PATH: "/usr/bin/google-chrome-stable"
