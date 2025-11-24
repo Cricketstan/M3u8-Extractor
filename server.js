@@ -14,6 +14,7 @@ app.get("/extract", async (req, res) => {
 
   try {
     const browser = await puppeteer.launch({
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,  // IMPORTANT FIX
       headless: "new",
       args: [
         "--no-sandbox",
@@ -21,8 +22,8 @@ app.get("/extract", async (req, res) => {
         "--disable-dev-shm-usage",
         "--disable-gpu",
         "--no-zygote",
-        "--single-process"
-      ]
+        "--single-process",
+      ],
     });
 
     const page = await browser.newPage();
@@ -36,7 +37,10 @@ app.get("/extract", async (req, res) => {
       }
     });
 
-    await page.goto(target, { waitUntil: "networkidle2", timeout: 0 });
+    await page.goto(target, {
+      waitUntil: "networkidle2",
+      timeout: 0,
+    });
 
     await page.waitForTimeout(5000);
 
