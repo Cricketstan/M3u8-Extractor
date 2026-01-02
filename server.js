@@ -1,49 +1,77 @@
-import express from "express";
-import cors from "cors";
-import puppeteer from "puppeteer-core";
-import chrome from "chrome-aws-lambda";
+const express = require("express");
+const puppeteer = require("puppeteer");
 
 const app = express();
-app.use(cors());
+app.use(express.json());
 
-app.get("/extract", async (req, res) => {
-  const target = req.query.url;
+app.post("/extract", async (req, res) => {
+  const { url } = req.body;
+  if (!url) return res.json({ error: "URL required" });
 
-  if (!target) 
-    return res.json({ error: "Missing ?url=" });
+  let browser;
 
   try {
-    const executablePath = await chrome.executablePath;
-
-    const browser = await puppeteer.launch({
-      executablePath,
-      headless: true,
-      args: chrome.args
+    browser = await puppeteer.launch({
+      headless: "new",
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu"
+      ]
     });
 
     const page = await browser.newPage();
+    const found = new Set();
 
-    let links = [];
-
-    page.on("request", reqObj => {
-      const url = reqObj.url();
-      if (url.includes(".m3u8")) links.push(url);
+    page.on("request", r => {
+      const u = r.url();
+      if (u.includes(".m3u8")) found.add(u);
     });
 
-    await page.goto(target, { waitUntil: "networkidle2", timeout: 0 });
-    await page.waitForTimeout(4000);
+    page.on("response", r => {
+      const u = r.url();
+      if (u.includes(".m3u8")) found.add(u);
+    });
+
+    await page.setUserAgent(
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36"
+    );
+
+    await page.goto(url, {
+      waitUntil: "domcontentloaded",
+      timeout: 60000
+    });
+
+    // Try autoplay
+    await page.evaluate(() => {
+      const v = document.querySelector("video");
+      if (v) v.play().catch(()=>{});
+    });
+
+    await new Promise(r => setTimeout(r, 8000));
 
     await browser.close();
 
-    res.json({ extracted: [...new Set(links)] });
+    if (found.size === 0) {
+      return res.json({
+        success: false,
+        message: "No m3u8 found (DRM or protected)"
+      });
+    }
 
-  } catch (err) {
-    res.json({ error: err.toString() });
+    res.json({
+      success: true,
+      count: found.size,
+      streams: [...found]
+    });
+
+  } catch (e) {
+    if (browser) await browser.close();
+    res.status(500).json({ error: e.message });
   }
 });
 
-app.get("/", (req, res) => {
-  res.send("M3U8 Extractor is running!");
+app.listen(process.env.PORT || 3000, () => {
+  console.log("🚀 M3U8 extractor running");
 });
-
-app.listen(3000, () => console.log("Server started"));
