@@ -4,7 +4,6 @@
 import os
 import json
 import subprocess
-import threading
 from flask import Flask, request, jsonify
 import time
 
@@ -31,44 +30,79 @@ def capture():
         url = data.get('url', os.getenv('TARGET_URL', 'https://news.abplive.com/live-tv'))
     
     try:
-        # Run the capture script as a subprocess
-        result = subprocess.run(
-            ['python', 'fetch_stream_optimized.py', url],
-            capture_output=True,
-            text=True,
-            timeout=45
-        )
+        # Set environment variables for the subprocess
+        env = os.environ.copy()
+        env['TARGET_URL'] = url
+        env['MAX_WAIT_SECONDS'] = os.getenv('MAX_WAIT_SECONDS', '20')
+        env['STARTUP_TIMEOUT'] = os.getenv('STARTUP_TIMEOUT', '30')
         
-        if result.returncode == 0:
-            # Parse output to extract URLs
-            lines = result.stdout.strip().split('\n')
-            urls = [line for line in lines if line.startswith('http') and '.m3u8' in line]
-            
+        # Run the capture script directly (not as subprocess)
+        # Import and run the module
+        import sys
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        
+        # Import and run main function
+        import fetch_stream_optimized
+        import io
+        import contextlib
+        
+        # Capture output
+        output_capture = io.StringIO()
+        with contextlib.redirect_stdout(output_capture), contextlib.redirect_stderr(output_capture):
+            # Run the main function
+            try:
+                # Since fetch_stream_optimized.main() calls sys.exit(), we need to catch it
+                old_sys_exit = sys.exit
+                def mock_exit(code=0):
+                    raise SystemExit(code)
+                sys.exit = mock_exit
+                
+                fetch_stream_optimized.main()
+                return_code = 0
+            except SystemExit as e:
+                return_code = e.code if isinstance(e.code, int) else 0
+            finally:
+                sys.exit = old_sys_exit
+        
+        output = output_capture.getvalue()
+        
+        # Parse output to extract URLs
+        urls = []
+        for line in output.split('\n'):
+            if 'http' in line and '.m3u8' in line:
+                # Clean the line (remove timestamps and colors)
+                clean_line = line.strip()
+                # Remove color codes if present
+                import re
+                clean_line = re.sub(r'\x1b\[[0-9;]*m', '', clean_line)
+                # Remove timestamps
+                clean_line = re.sub(r'^\d{2}:\d{2}:\d{2}\s+', '', clean_line)
+                if clean_line.startswith('http'):
+                    urls.append(clean_line)
+        
+        if return_code == 0 and urls:
             return jsonify({
                 "success": True,
                 "url": url,
                 "streams_found": len(urls),
                 "streams": urls,
-                "output": result.stdout[-1000:]  # Last 1000 chars
+                "output": output[-2000:]  # Last 2000 chars
             })
         else:
             return jsonify({
                 "success": False,
                 "url": url,
-                "error": f"Script failed with code {result.returncode}",
-                "stdout": result.stdout[-1000:],
-                "stderr": result.stderr[-1000:]
-            }), 500
+                "error": f"No streams found or script returned code {return_code}",
+                "output": output[-2000:],
+                "return_code": return_code
+            }), 500 if return_code != 0 else 404
             
-    except subprocess.TimeoutExpired:
-        return jsonify({
-            "success": False,
-            "error": "Script timed out after 45 seconds"
-        }), 408
     except Exception as e:
+        import traceback
         return jsonify({
             "success": False,
-            "error": str(e)
+            "error": str(e),
+            "traceback": traceback.format_exc()
         }), 500
 
 if __name__ == '__main__':
