@@ -1,13 +1,3 @@
-{
-  "name": "m3u8-extractor",
-  "version": "1.0.0",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "postinstall": "npx puppeteer install"
-  },
-  "dependencies": {
-    "express": "^4.19.2",
-    "puppeteer": "^22.8.2"
-  }
-}
+flask
+selenium
+webdriver-manager
