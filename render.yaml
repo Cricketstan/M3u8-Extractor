@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: stream-capture
+    name: stream-capture-api
     env: python
     region: oregon  # or your preferred region
     buildCommand: |
@@ -43,12 +43,15 @@ services:
       rm chromedriver_linux64.zip
       
       pip install -r requirements.txt
-    startCommand: python fetch_stream_optimized.py
+    
+    startCommand: python app.py  # <-- THIS IS THE START COMMAND
     envVars:
       - key: PYTHONUNBUFFERED
         value: true
+      - key: PORT
+        value: 10000
       - key: TARGET_URL
-        value: https://news.abplive.com/live-tv  # Change this as needed
+        value: https://news.abplive.com/live-tv
       - key: MAX_WAIT_SECONDS
         value: "20"
       - key: STARTUP_TIMEOUT
