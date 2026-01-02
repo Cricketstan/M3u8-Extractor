@@ -1,4 +1,3 @@
-
 services:
   - type: web
     name: m3u8-api
@@ -6,12 +5,14 @@ services:
     plan: free
     buildCommand: |
       apt-get update
-      apt-get install -y chromium chromium-driver
+      apt-get install -y chromium-browser
       pip install -r requirements.txt
     startCommand: gunicorn server:app
     envVars:
       - key: TARGET_URL
         value: https://news.abplive.com/live-tv
+      - key: CHROME_BIN
+        value: /usr/bin/chromium-browser
 
   - type: cron
     name: m3u8-cron
@@ -19,9 +20,11 @@ services:
     schedule: "*/5 * * * *"
     buildCommand: |
       apt-get update
-      apt-get install -y chromium chromium-driver
+      apt-get install -y chromium-browser
       pip install -r requirements.txt
     startCommand: python fetch_stream_optimized.py
     envVars:
       - key: TARGET_URL
         value: https://news.abplive.com/live-tv
+      - key: CHROME_BIN
+        value: /usr/bin/chromium-browser
